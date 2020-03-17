@@ -1,5 +1,19 @@
 import React from 'react';
 
+const DEFAULT_QUERY = "redux";
+const DEFAULT_PAGE = "0";
+const DEAFULT_HPP = "100";
+
+const PATH_BASE = "https://hn.algolia.com/api/v1";
+const PATH_SEARCH = "/search";
+const PARAM_SEARCH = "query=";
+const PARAM_PAGE = "page=";
+const PARAM_HPP = "hitsPerPage=";
+
+const url = `${PATH_BASE}${PATH_SEARCH}?${PARAM_SEARCH}${DEFAULT_QUERY}&${PARAM_PAGE}${DEFAULT_PAGE}&${PARAM_HPP}${DEAFULT_HPP}`;
+
+console.log(url);
+
 const list = [
     { 
         title: 'React',
@@ -55,38 +69,120 @@ const midColumn = {
 const smallColumn = {
     width: '10%'
 }
-const isSearched = searchTerm => item =>
-    item.title.toLowerCase().includes(searchTerm.toLowerCase());
+// const isSearched = searchTerm => item =>
+//     item.title.toLowerCase().includes(searchTerm.toLowerCase());
 class HelloMessage extends React.Component {
     constructor(props) {
         super(props);
         this.state = {
-            list: list,
-            searchTerm: '',
+            //list: list,
+            results: null,
+            searchKey: "",
+            searchTerm: DEFAULT_QUERY,
+            error: null,
         };
         this.onDismiss = this.onDismiss.bind(this);
         this.onSearchChange = this.onSearchChange.bind(this);
+
+        // chapter3
+        this.needsToSearchTopStories = this.needsToSearchTopStories.bind(this);
+        this.setSearchTopStories = this.setSearchTopStories.bind(this);
+        this.fetchSearchTopStories = this.fetchSearchTopStories.bind(this);
+        this.onSearchSumbit = this.onSearchSumbit.bind(this);
+    }
+
+    needsToSearchTopStories(searchTerm) {
+        return !this.state.results[searchTerm];
+    }
+
+    componentDidMount() {
+        const { searchTerm } = this.state;
+        this.setState({ searchKey: searchTerm });
+        this.fetchSearchTopStories(searchTerm);
     }
 
     onDismiss(id) {
-        const updatedList = this.state.list.filter(item =>
-            item.objectID !== id
-        );
+        const { searchKey, results } = this.state;
+        const {hits, page } = results[searchKey];
+
+        const isNotId = item => item.objectID !== id;
+
+        const updatedHits = hits.filter(isNotId);
         
         console.log(this);
 
-        this.setState({list: updatedList});
+        this.setState({
+            //result: Object.assign({}, this.state.result, { hits: updatedHits })
+            ...results,
+            [searchKey]: { hits: updatedHits, page }
+        });
     }
 
     onSearchChange(event) {
         this.setState({ searchTerm: event.target.value });
     }
+
+    /** chapter3 start */
+    setSearchTopStories(result) {
+        const { hits, page} = result;
+
+        const { searchKey, results } = this.state;
+
+        const oldHits = results && results[searchKey]
+            ? results[searchKey].hits
+            : [];
+
+        const updatedHits = [
+            ...oldHits, ...hits
+        ];
+
+        this.setState({
+            ...results,
+            [searchKey]: {hits: updatedHits, page}
+        });
+    }
+
+    fetchSearchTopStories(searchTerm, page = 0) {
+        fetch(`${url}${page}&${PARAM_HPP}${DEAFULT_HPP}`)
+            .then(response => response.json())
+            .then(results => this.setSearchTopStories(results))
+            .catch(e => this.setState({ error: e }));
+    }
+
+    onSearchSumbit(event) {
+        const {
+            searchTerm
+        } = this.state;
+        
+        this.setState({ searchKey: searchTerm });
+
+        if (this.needsToSearchTopStories(searchTerm)) {
+            this.fetchSearchTopStories(searchTerm);
+        }
+        event.preventDefault();
+    }
+    /** chapter3 end */
+
     render() {
 
         var msg = "Welcome React World!!!";
         msg = "Hello, " + msg;
 
-        const {searchTerm, list} = this.state;
+        console.log(this.state);
+
+        const {searchTerm, results, searchKey, error} = this.state;
+        
+        if (error) {
+            return (<p>Something went wrong.</p>);
+        }
+
+        const page = (results && results[searchKey] && results[searchKey].page) || 0;
+
+        const list = (
+            results &&
+            results[searchKey] &&
+            results[searchKey].hits
+        ) || [];
 
         return (
             <div className="page"> 
@@ -96,16 +192,31 @@ class HelloMessage extends React.Component {
                     <Search 
                         value={searchTerm}
                         onChange={this.onSearchChange} 
+                        onSumbit={this.onSearchSumbit}
                     >
                         Search
                     </Search>
                     
                 </div>
-                <Table 
+                {
+                    error 
+                    ? 
+                    <div className="interactions">
+                        <p>Something went wrong.</p>
+                    </div>
+                    :
+                    <Table 
                         list={list}
                         pattern={searchTerm}
                         onDismiss={this.onDismiss}
                     />
+                    
+                }
+                <div className="interactions">
+                    <Button onClick={() => this.fetchSearchTopStories(searchTerm, page + 1)}>
+                        More
+                    </Button>
+                </div>
                 
             </div>
         );
@@ -131,20 +242,38 @@ class HelloMessage extends React.Component {
 //     }
 // }
 
-function Search(props) {
-    const { value, onChange, children } = props;
+// function Search(props) {
+//     const { value, onChange, children } = props;
 
-    return (
-        <form>
-            {children + value}
-            <input type="text" 
+//     return (
+//         <form>
+//             {children + value}
+//             <input type="text" 
+//             value={value}
+//             onChange={onChange}
+            
+//             />
+//         </form>
+//     );
+// }
+
+const Search = ({
+    value,
+    onChange,
+    onSumbit,
+    children
+}) =>
+    <form>
+        {children + value}
+        <input type="text" 
             value={value}
             onChange={onChange}
-            
-            />
-        </form>
-    );
-}
+        />
+        <button type="submit">
+            {children}
+        </button>
+    </form>  
+
 // class Table extends React.Component {
 //     constructor(props) {
 //         super(props);
@@ -181,7 +310,7 @@ function Table(props) {
     return (
         <div className="table">
             
-            { list.filter(isSearched(pattern)).map(item =>
+            { list.map(item =>
                     
                 <div key={item.objectID} className="table-row">
                     <span style={largeColumn}>
